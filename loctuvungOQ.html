@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phân Loại Từ Vựng Thông Minh - Sửa Lỗi Khoảng Trắng</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            resize: vertical;
+            font-size: 15px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #1e40af;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #1e293b;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+        tr:hover {
+            background-color: #f8fafc;
+        }
+        .vocab { font-weight: bold; color: #2563eb; font-size: 16px; }
+        .pronun { color: #64748b; font-style: italic; font-family: sans-serif; }
+        .type { color: #d97706; font-weight: 500; }
+        .definition { color: #334155; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Nhập dữ liệu từ vựng cần phân loại</h2>
+    <p style="color: #64748b; margin-top: -10px;">(Hệ thống tự động quét tìm IPA, Loại từ, Định nghĩa và GIỮ NGUYÊN dấu cách tiếng Việt)</p>
+    
+    <textarea id="rawInput" placeholder="Dán dữ liệu của bạn vào đây...&#10;Ví dụ:&#10;Passenger&#10;/ˈpæs.ən.dʒər/&#10;noun) hành khách"></textarea>
+    <br>
+    <button onclick="processDataAdvanced()">Phân Loại Thông Minh</button>
+
+    <h2>Kết Quả Phân Loại</h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 25%;">Từ vựng</th>
+                <th style="width: 35%;">Định nghĩa</th>
+                <th style="width: 25%;">Phát âm</th>
+                <th style="width: 15%;">Loại từ</th>
+            </tr>
+        </thead>
+        <tbody id="resultTable">
+            </tbody>
+    </table>
+</div>
+
+<script>
+function processDataAdvanced() {
+    const inputText = document.getElementById('rawInput').value;
+    const tableBody = document.getElementById('resultTable');
+    tableBody.innerHTML = '';
+
+    // Tách thành từng dòng và làm sạch khoảng trắng đầu/cuối dòng
+    let lines = inputText.split('\n').map(l => l.trim()).filter(l => l !== '');
+    
+    let vocab = "", definition = "", pronunciation = "", wordType = "";
+    
+    function addRow(v, d, p, t) {
+        if (!v && !d && !p && !t) return;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="vocab">${v || ''}</td>
+            <td class="definition">${d || ''}</td>
+            <td class="pronun">${p || ''}</td>
+            <td class="type">${t || ''}</td>
+        `;
+        tableBody.appendChild(row);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        let currentLine = lines[i];
+
+        // 1. KIỂM TRA PHÁT ÂM (IPA): Chứa dấu gạch chéo hoặc ký tự IPA đặc trưng
+        if (currentLine.startsWith('/') || currentLine.endsWith('/') || /[æəːɪʌɒʊθðʃʒŋ]/.test(currentLine)) {
+            pronunciation = currentLine;
+            continue;
+        }
+
+        // 2. KIỂM TRA LOẠI TỪ: Tìm các từ khóa loại từ (noun, verb, adj, adv...)
+        const typeRegex = /\b(noun|verb|adj|adv|pronoun|preposition|conjunction|interjection|n|v)\b/i;
+        if (typeRegex.test(currentLine)) {
+            let match = currentLine.match(typeRegex)[0];
+            wordType = `(${match.toLowerCase()})`;
+            
+            // Lấy phần Định nghĩa còn lại đứng sau hoặc đứng trước từ khóa loại từ (Giữ nguyên dấu cách)
+            // Loại bỏ từ khóa loại từ và các ký tự nhiễu như dấu đóng mở ngoặc đơn lẻ ) hoặc (
+            let remain = currentLine.replace(typeRegex, '').replace(/[\(\)]/g, '').trim();
+            if (remain.length > 0) {
+                definition = remain;
+            }
+            continue;
+        }
+
+        // 3. KIỂM TRA TIẾNG VIỆT ĐƠN THUẦN (Định nghĩa tự đứng một dòng)
+        const vniRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+        if (vniRegex.test(currentLine)) {
+            definition = currentLine;
+            continue;
+        }
+
+        // 4. KIỂM TRA TỪ VỰNG: Nếu là chữ tiếng Anh nguyên bản
+        if (/^[a-zA-Z\s\-]+$/.test(currentLine)) {
+            // Trước khi nạp từ mới, nếu bộ nhớ đệm đã có từ cũ thì xuất ra bảng trước
+            if (vocab) {
+                addRow(vocab, definition, pronunciation, wordType);
+                vocab = ""; definition = ""; pronunciation = ""; wordType = ""; // Reset bộ nhớ
+            }
+            vocab = currentLine;
+        }
+    }
+    
+    // Đẩy dòng cuối cùng vào hệ thống
+    addRow(vocab, definition, pronunciation, wordType);
+}
+</script>
+
+</body>
+</html>
