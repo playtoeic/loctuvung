@@ -12,7 +12,7 @@
             color: #333;
         }
         .container { max-width: 1100px; margin: 0 auto; }
-        textarea {
+        #rawInput {
             width: 100%; height: 190px; padding: 12px;
             border: 2px solid #cbd5e1; border-radius: 8px;
             resize: vertical; font-size: 15px; box-sizing: border-box;
@@ -39,7 +39,13 @@
         .vocab { font-weight: bold; color: #2563eb; font-size: 16px; }
         .pronun { color: #64748b; font-style: italic; font-family: sans-serif; }
         .type { color: #d97706; font-weight: 500; }
-        .definition, .example { color: #334155; }
+        .definition { color: #334155; }
+        .example-input {
+            display: block; width: 100%; min-width: 220px; min-height: 72px;
+            padding: 8px; box-sizing: border-box; resize: vertical;
+            border: 1px solid #cbd5e1; border-radius: 5px;
+            font: inherit; color: #334155; line-height: 1.45;
+        }
         .output {
             white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px;
             background: #1e293b; color: #e2e8f0; border-radius: 8px;
@@ -69,6 +75,7 @@ noun) hành khách'></textarea>
     <button onclick="processDataAdvanced()">Phân Loại Thông Minh</button>
 
     <h2>Kết Quả Phân Loại</h2>
+    <p style="color: #64748b;">Cột “Câu ví dụ” có thể chỉnh sửa. Dán nhiều câu vào ô đầu tiên; mỗi dòng sẽ được điền lần lượt theo thứ tự từ vựng.</p>
     <table>
         <thead>
             <tr>
@@ -172,19 +179,49 @@ function processDataAdvanced() {
         ]) {
             const cell = document.createElement('td');
             cell.className = className;
-            cell.textContent = value;
+            if (className === 'example') {
+                const exampleInput = document.createElement('textarea');
+                exampleInput.className = 'example-input';
+                exampleInput.setAttribute('aria-label', `Câu ví dụ cho ${item.vocab}`);
+                exampleInput.value = value;
+                cell.appendChild(exampleInput);
+            } else {
+                cell.textContent = value;
+            }
             row.appendChild(cell);
         }
         tableBody.appendChild(row);
     }
 
-    const formattedRows = rows.map(item =>
-        '    ' + JSON.stringify([item.vocab, item.definition, item.type, item.pronunciation, item.example])
-    );
+    const formattedRows = rows.map((item, index) => {
+        const example = tableBody.querySelectorAll('.example-input')[index]?.value ?? item.example;
+        return '    ' + JSON.stringify([item.vocab, item.definition, item.type, item.pronunciation, example]);
+    });
     document.getElementById('arrayOutput').textContent = formattedRows.length
         ? formattedRows.join(',\n')
         : '';
 }
+
+// Dán danh sách câu nhiều dòng vào một ô sẽ phân bổ từng dòng xuống các hàng kế tiếp.
+document.getElementById('resultTable').addEventListener('paste', event => {
+    const target = event.target;
+    if (!target.matches('.example-input')) return;
+
+    const pastedText = event.clipboardData?.getData('text');
+    if (!pastedText || !/\r?\n/.test(pastedText)) return;
+
+    event.preventDefault();
+    const examples = pastedText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const inputs = Array.from(document.querySelectorAll('#resultTable .example-input'));
+    const startIndex = inputs.indexOf(target);
+
+    examples.forEach((example, offset) => {
+        const input = inputs[startIndex + offset];
+        if (input) input.value = example;
+    });
+    document.getElementById('copyStatus').textContent = `Đã điền ${Math.min(examples.length, inputs.length - startIndex)} câu ví dụ theo thứ tự.`;
+    document.getElementById('copyStatus').style.color = '#15803d';
+});
 
 async function copyVocabularyPrompt() {
     const status = document.getElementById('copyStatus');
@@ -198,17 +235,20 @@ async function copyVocabularyPrompt() {
         return;
     }
 
-    const prompt = `Hãy đặt cho mỗi từ sau đây 1 câu ví dụ ngắn, tự nhiên và dễ hiểu có sử dụng từ đó, phù hợp với trình độ TOEIC 450–750.
+    const prompt = `Hãy đặt cho mỗi từ/cụm từ sau đây 1 câu ví dụ ngắn, tự nhiên và dễ hiểu, phù hợp với trình độ TOEIC 450–750.
 Yêu cầu:
-Câu ví dụ mang ngữ cảnh thường gặp trong TOEIC (công việc, văn phòng, kinh doanh, du lịch, tuyển dụng...).
+Sử dụng ngữ cảnh thường gặp trong TOEIC (công việc, văn phòng, kinh doanh, du lịch, tuyển dụng...).
 Ưu tiên cấu trúc ngữ pháp thông dụng.
-Không sử dụng từ vựng quá khó so với band 450–750.
+Không sử dụng từ vựng quá khó.
 In đậm từ vựng được cung cấp trong câu.
-Kèm bản dịch tiếng Việt bên dưới.
-Chỉ đưa ra 1 câu ví dụ, không giải thích dài dòng.
+Mỗi từ chỉ có đúng 1 câu ví dụ.
+Chỉ xuất các câu tiếng Anh, mỗi câu trên một dòng.
+Không đánh số thứ tự.
+Không dịch tiếng Việt.
+Không giải thích, không tiêu đề, không lời dẫn, không ghi chú và không thêm bất kỳ nội dung nào khác.
 
-Danh sách từ vựng:
-${vocabularies.map((word, index) => `${index + 1}. ${word}`).join('\n')}`;
+Danh sách từ/cụm từ:
+${vocabularies.join('\n')}`;
 
     try {
         if (navigator.clipboard && window.isSecureContext) {
