@@ -138,7 +138,9 @@ function processDataAdvanced() {
                 continue;
             }
 
-            if (/^[a-zA-Z][a-zA-Z\s-]*$/.test(line)) {
+            // Cho phép dấu phẩy trong cụm từ/từ đồng nghĩa, ví dụ "luggage, baggage".
+            // Nhờ đó dòng mới được nhận diện và bản ghi từ trước được lưu đúng lúc.
+            if (/^[a-zA-Z][a-zA-Z\s,-]*$/.test(line)) {
                 saveCurrent();
                 current = { vocab: line, definition: '', type: '', pronunciation: '', example: '' };
                 continue;
