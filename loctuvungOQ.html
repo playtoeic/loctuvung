@@ -62,10 +62,9 @@
 <body>
 <div class="container">
     <h2>Nhập dữ liệu từ vựng cần phân loại</h2>
-    <p style="color: #64748b; margin-top: -10px;">Dán dữ liệu từ vựng dạng từng dòng hoặc các mảng dữ liệu như ví dụ bên dưới.</p>
+    <p style="color: #64748b; margin-top: -10px;">Dán dữ liệu từ vựng dạng từng dòng hoặc các mảng dữ liệu.</p>
     <textarea id="rawInput" placeholder='Ví dụ dạng mảng:
-["product", "Sản phẩm", "noun", "/ˈprɒd.ʌkt/", "This store sells high-quality products."],
-["resort", "Khu nghỉ dưỡng", "noun", "/rɪˈzɔːt/", "We stayed at a luxury beach resort during our vacation."]
+["product", "Sản phẩm", "noun", "/ˈprɒd.ʌkt/", "This store sells high-quality products."]
 
 Hoặc dạng từng dòng:
 Passenger
@@ -75,7 +74,7 @@ noun) hành khách'></textarea>
     <button onclick="processDataAdvanced()">Phân Loại Thông Minh</button>
 
     <h2>Kết Quả Phân Loại</h2>
-    <p style="color: #64748b;">Cột “Câu ví dụ” có thể chỉnh sửa. Dán nhiều câu vào ô đầu tiên; mỗi dòng sẽ được điền lần lượt theo thứ tự từ vựng.</p>
+    <p style="color: #64748b;">Dán các câu ví dụ vào ô đầu tiên trong cột “Câu ví dụ”; mỗi dòng sẽ được điền lần lượt theo thứ tự từ vựng.</p>
     <table>
         <thead>
             <tr>
@@ -90,10 +89,11 @@ noun) hành khách'></textarea>
     </table>
 
     <button type="button" onclick="copyVocabularyPrompt()">copy nhờ AI đặt câu ví dụ</button>
+    <button type="button" onclick="convertToArrayAndCopy()">Biến thành dạng mảng (tự copy)</button>
     <p id="copyStatus" role="status" aria-live="polite"></p>
 
     <h2>Kết quả dạng mảng</h2>
-    <p style="color: #64748b;">Thứ tự: từ vựng, định nghĩa, loại từ, phát âm, câu ví dụ.</p>
+    <p style="color: #64748b;">Thứ tự: từ vựng, định nghĩa, loại từ, phát âm, câu ví dụ. Câu ví dụ được đặt trong dấu ngoặc kép.</p>
     <pre id="arrayOutput" class="output"></pre>
 </div>
 
@@ -103,7 +103,6 @@ function processDataAdvanced() {
     const rows = [];
 
     // Nhận dữ liệu dạng từng mảng [từ, định nghĩa, loại từ, IPA, câu ví dụ].
-    // Mỗi mảng có thể kết thúc bằng dấu phẩy như trong đoạn mã JavaScript.
     const arrayLines = inputText.split(/\r?\n/).map(line => line.trim()).filter(line => line.startsWith('['));
     if (arrayLines.length) {
         for (const line of arrayLines) {
@@ -119,12 +118,12 @@ function processDataAdvanced() {
                     });
                 }
             } catch (error) {
-                // Bỏ qua dòng không phải mảng hợp lệ và tiếp tục xử lý dữ liệu khác.
+                // Bỏ qua dòng không phải mảng hợp lệ.
             }
         }
     }
 
-    // Tương thích với định dạng cũ: mỗi từ, IPA, loại từ và định nghĩa ở từng dòng.
+    // Tương thích với định dạng cũ: từ, IPA, loại từ và định nghĩa ở từng dòng.
     if (!rows.length) {
         const lines = inputText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
         let current = null;
@@ -150,7 +149,7 @@ function processDataAdvanced() {
                 continue;
             }
 
-            // Cho phép dấu phẩy trong cụm từ/từ đồng nghĩa, ví dụ "luggage, baggage".
+            // Cho phép dấu phẩy trong tên từ/cụm từ, ví dụ "luggage, baggage".
             if (/^[a-zA-Z][a-zA-Z\s,-]*$/.test(line)) {
                 saveCurrent();
                 current = { vocab: line, definition: '', type: '', pronunciation: '', example: '' };
@@ -193,16 +192,32 @@ function processDataAdvanced() {
         tableBody.appendChild(row);
     }
 
-    const formattedRows = rows.map((item, index) => {
-        const example = tableBody.querySelectorAll('.example-input')[index]?.value ?? item.example;
-        return '    ' + JSON.stringify([item.vocab, item.definition, item.type, item.pronunciation, example]);
+    updateArrayOutput(rows);
+}
+
+function getRowsFromTable() {
+    return Array.from(document.querySelectorAll('#resultTable tr')).map(row => {
+        const cells = row.querySelectorAll('td');
+        return {
+            vocab: cells[0]?.textContent.trim() ?? '',
+            definition: cells[1]?.textContent.trim() ?? '',
+            type: cells[2]?.textContent.trim() ?? '',
+            pronunciation: cells[3]?.textContent.trim() ?? '',
+            example: cells[4]?.querySelector('.example-input')?.value.trim() ?? ''
+        };
     });
+}
+
+function updateArrayOutput(rows = getRowsFromTable()) {
+    const formattedRows = rows.map(item =>
+        '    ' + JSON.stringify([item.vocab, item.definition, item.type, item.pronunciation, item.example])
+    );
     document.getElementById('arrayOutput').textContent = formattedRows.length
         ? formattedRows.join(',\n')
         : '';
 }
 
-// Dán danh sách câu nhiều dòng vào một ô sẽ phân bổ từng dòng xuống các hàng kế tiếp.
+// Dán danh sách câu nhiều dòng vào một ô sẽ điền từng câu xuống các hàng kế tiếp.
 document.getElementById('resultTable').addEventListener('paste', event => {
     const target = event.target;
     if (!target.matches('.example-input')) return;
@@ -219,15 +234,36 @@ document.getElementById('resultTable').addEventListener('paste', event => {
         const input = inputs[startIndex + offset];
         if (input) input.value = example;
     });
-    document.getElementById('copyStatus').textContent = `Đã điền ${Math.min(examples.length, inputs.length - startIndex)} câu ví dụ theo thứ tự.`;
+    const filledCount = Math.min(examples.length, inputs.length - startIndex);
+    document.getElementById('copyStatus').textContent = `Đã điền ${filledCount} câu ví dụ theo thứ tự.`;
     document.getElementById('copyStatus').style.color = '#15803d';
+    updateArrayOutput();
 });
+
+document.getElementById('resultTable').addEventListener('input', event => {
+    if (event.target.matches('.example-input')) updateArrayOutput();
+});
+
+async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const temporaryInput = document.createElement('textarea');
+    temporaryInput.value = text;
+    temporaryInput.style.position = 'fixed';
+    temporaryInput.style.left = '-9999px';
+    document.body.appendChild(temporaryInput);
+    temporaryInput.select();
+    const copied = document.execCommand('copy');
+    temporaryInput.remove();
+    if (!copied) throw new Error('Không thể sao chép vào clipboard');
+}
 
 async function copyVocabularyPrompt() {
     const status = document.getElementById('copyStatus');
-    const vocabularies = Array.from(document.querySelectorAll('#resultTable .vocab'))
-        .map(cell => cell.textContent.trim())
-        .filter(Boolean);
+    const vocabularies = getRowsFromTable().map(item => item.vocab).filter(Boolean);
 
     if (!vocabularies.length) {
         status.textContent = 'Chưa có từ vựng trong bảng. Hãy phân loại dữ liệu trước.';
@@ -238,11 +274,9 @@ async function copyVocabularyPrompt() {
     const prompt = `Hãy đặt cho mỗi từ/cụm từ sau đây 1 câu ví dụ ngắn, tự nhiên và dễ hiểu, phù hợp với trình độ TOEIC 450–750.
 Yêu cầu:
 Sử dụng ngữ cảnh thường gặp trong TOEIC (công việc, văn phòng, kinh doanh, du lịch, tuyển dụng...).
-Ưu tiên cấu trúc ngữ pháp thông dụng.
+Ưu tiên cấu trúc ngữ pháp thông thường.
 Không sử dụng từ vựng quá khó.
-In đậm từ vựng được cung cấp trong câu.
 Mỗi từ chỉ có đúng 1 câu ví dụ.
-Chỉ xuất các câu tiếng Anh, mỗi câu trên một dòng.
 Không đánh số thứ tự.
 Không dịch tiếng Việt.
 Không giải thích, không tiêu đề, không lời dẫn, không ghi chú và không thêm bất kỳ nội dung nào khác.
@@ -251,23 +285,36 @@ Danh sách từ/cụm từ:
 ${vocabularies.join('\n')}`;
 
     try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(prompt);
-        } else {
-            const temporaryInput = document.createElement('textarea');
-            temporaryInput.value = prompt;
-            temporaryInput.style.position = 'fixed';
-            temporaryInput.style.left = '-9999px';
-            document.body.appendChild(temporaryInput);
-            temporaryInput.select();
-            const copied = document.execCommand('copy');
-            temporaryInput.remove();
-            if (!copied) throw new Error('Không thể sao chép vào clipboard');
-        }
+        await copyText(prompt);
         status.textContent = `Đã copy prompt cùng ${vocabularies.length} từ vựng. Bạn có thể dán vào AI.`;
         status.style.color = '#15803d';
     } catch (error) {
         status.textContent = 'Không thể copy tự động. Hãy thử cấp quyền clipboard hoặc mở trang qua HTTPS.';
+        status.style.color = '#b91c1c';
+    }
+}
+
+async function convertToArrayAndCopy() {
+    const status = document.getElementById('copyStatus');
+    const rows = getRowsFromTable().filter(item => item.vocab);
+
+    if (!rows.length) {
+        status.textContent = 'Chưa có từ vựng trong bảng. Hãy phân loại dữ liệu trước.';
+        status.style.color = '#b91c1c';
+        return;
+    }
+
+    const arrayText = rows.map(item =>
+        '    ' + JSON.stringify([item.vocab, item.definition, item.type, item.pronunciation, item.example])
+    ).join(',\n');
+    document.getElementById('arrayOutput').textContent = arrayText;
+
+    try {
+        await copyText(arrayText);
+        status.textContent = `Đã tạo và copy ${rows.length} mảng. Câu ví dụ được đặt trong dấu ngoặc kép.`;
+        status.style.color = '#15803d';
+    } catch (error) {
+        status.textContent = 'Đã tạo dạng mảng nhưng không copy được. Hãy thử cấp quyền clipboard hoặc mở trang qua HTTPS.';
         status.style.color = '#b91c1c';
     }
 }
